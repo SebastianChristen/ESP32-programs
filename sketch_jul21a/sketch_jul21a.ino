@@ -5,8 +5,10 @@
 #include <WiFi.h>
 #include "time.h"
 #include <HTTPClient.h>
-#include <LiquidCrystal_I2C.h>
 #include <ArduinoJson.h>
+
+#include <LiquidCrystal_I2C.h>
+
 
 //0x3F or 0x27; twenty by four
 LiquidCrystal_I2C lcd(0x27, 20, 4);  //LCD Object
@@ -14,6 +16,7 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);  //LCD Object
 // ---------- SENSITIVE STUFF, DON'T SHARE ----------------
 
 // ---------- end of sensitive stuff ----------------
+
 
 
 const char* ntpServer1 = "pool.ntp.org";
@@ -54,8 +57,6 @@ void setup() {
   pinMode(19, OUTPUT);  // Pin 19 als Ausgang definieren
 }
 
-
-
 void printLocalTime() {
 
   struct tm timeinfo;
@@ -86,12 +87,9 @@ void printLocalTime() {
 
 void printWeather() {
 
-  //digitalWrite(19, HIGH);  // Pin 19 auf HIGH setzen
-
   HTTPClient http;
   http.begin(weatherUrl);
   http.addHeader("Authorization", "token " + String(authToken));
-
 
   int httpCode = http.GET();
   if (httpCode > 0) {
@@ -111,16 +109,16 @@ void printWeather() {
     snprintf(weatherStr, sizeof(weatherStr), "%.1fC %s", temperature, weatherDescription.c_str());
     lcd.setCursor(0, 1);
     Serial.println(weatherStr);
-    lcd.print(weatherStr);
+    scrollText(weatherStr);
   } else {
     Serial.printf("HTTP GET request failed, code: %d\n", httpCode);
   }
   http.end();
-  // digitalWrite(19, LOW);  // Pin 19 auf LOW setze
 }
 
 
 void printCurrentSong() {
+  lcd.setCursor(0, 3);
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
     http.begin(user_url);
@@ -130,13 +128,13 @@ void printCurrentSong() {
       String payload = http.getString();
       currentSong = extractNowPlaying(payload);  // Store the extracted song and artist
 
-      // Print current song to the Serial Monitor
-      Serial.println("Now Playing: " + currentSong);
+      Serial.println("Vor der Transliterierung: " + currentSong);
 
+      String currentSongDeutsch = transliterateRussianToGerman(currentSong);
 
+      Serial.println("Nach der Transliterierung: " + currentSongDeutsch);
 
-      scrollText(currentSong);
-
+      scrollText(currentSongDeutsch);
 
     } else {
       Serial.println("Error in HTTP request");
@@ -159,8 +157,10 @@ void scrollText(String inputString) {
   // Loop indefinitely to scroll text
   for (int i = 0; i < inputString.length() + 1; i++) {
     // Print the first segment (fixed 20 characters)
-    lcd.setCursor(0, 0);      // Set cursor to the start of the first line
+    lcd.setCursor(0, 3);      // Set cursor to the start of the first line
     lcd.print(firstSegment);  // Print the first segment
+
+
 
     // Shift the first character of the first segment into the second segment
     char firstChar = firstSegment.charAt(0);   // Get the first character of the first segment
@@ -177,12 +177,103 @@ void scrollText(String inputString) {
     }
 
     // Delay to control the scroll speed
-    delay(200);  // Adjust this delay for faster or slower scrolling
+    delay(250);  // Adjust this delay for faster or slower scrolling
   }
 }
 
+String transliterateRussianToGerman(String russianText) {
+  String germanTranslit = "";
+  uint16_t currentChar;
+
+  for (int i = 0; i < russianText.length(); i++) {
+    // Lies das aktuelle Zeichen als unsigned char (UTF-8 kompatibel)
+    currentChar = (unsigned char)russianText[i];
+
+    // Prüfe ob das aktuelle Zeichen ein Mehr-Byte UTF-8 Zeichen ist
+    if (currentChar >= 0xC0) {
+      // UTF-8 kodierte Zeichen mit zwei Bytes lesen
+      currentChar = ((currentChar & 0x1F) << 6) | (russianText[i + 1] & 0x3F);
+      i++;  // Springe ein Zeichen weiter, da wir 2 Bytes gelesen haben
+    }
+
+    // Transliteration für kyrillische Buchstaben
+    switch (currentChar) {
+      case 0x0410: germanTranslit += "A"; break; // А
+      case 0x0430: germanTranslit += "a"; break; // а
+      case 0x0411: germanTranslit += "B"; break; // Б
+      case 0x0431: germanTranslit += "b"; break; // б
+      case 0x0412: germanTranslit += "W"; break; // В
+      case 0x0432: germanTranslit += "w"; break; // в
+      case 0x0413: germanTranslit += "G"; break; // Г
+      case 0x0433: germanTranslit += "g"; break; // г
+      case 0x0414: germanTranslit += "D"; break; // Д
+      case 0x0434: germanTranslit += "d"; break; // д
+      case 0x0415: germanTranslit += "Je"; break; // Е
+      case 0x0435: germanTranslit += "je"; break; // е
+      case 0x0401: germanTranslit += "Jo"; break; // Ё
+      case 0x0451: germanTranslit += "jo"; break; // ё
+      case 0x0416: germanTranslit += "Sch"; break; // Ж
+      case 0x0436: germanTranslit += "sch"; break; // ж
+      case 0x0417: germanTranslit += "S"; break; // З
+      case 0x0437: germanTranslit += "s"; break; // з
+      case 0x0418: germanTranslit += "I"; break; // И
+      case 0x0438: germanTranslit += "i"; break; // и
+      case 0x0419: germanTranslit += "J"; break; // Й
+      case 0x0439: germanTranslit += "j"; break; // й
+      case 0x041A: germanTranslit += "K"; break; // К
+      case 0x043A: germanTranslit += "k"; break; // к
+      case 0x041B: germanTranslit += "L"; break; // Л
+      case 0x043B: germanTranslit += "l"; break; // л
+      case 0x041C: germanTranslit += "M"; break; // М
+      case 0x043C: germanTranslit += "m"; break; // м
+      case 0x041D: germanTranslit += "N"; break; // Н
+      case 0x043D: germanTranslit += "n"; break; // н
+      case 0x041E: germanTranslit += "O"; break; // О
+      case 0x043E: germanTranslit += "o"; break; // о
+      case 0x041F: germanTranslit += "P"; break; // П
+      case 0x043F: germanTranslit += "p"; break; // п
+      case 0x0420: germanTranslit += "R"; break; // Р
+      case 0x0440: germanTranslit += "r"; break; // р
+      case 0x0421: germanTranslit += "S"; break; // С
+      case 0x0441: germanTranslit += "s"; break; // с
+      case 0x0422: germanTranslit += "T"; break; // Т
+      case 0x0442: germanTranslit += "t"; break; // т
+      case 0x0423: germanTranslit += "U"; break; // У
+      case 0x0443: germanTranslit += "u"; break; // у
+      case 0x0424: germanTranslit += "F"; break; // Ф
+      case 0x0444: germanTranslit += "f"; break; // ф
+      case 0x0425: germanTranslit += "Ch"; break; // Х
+      case 0x0445: germanTranslit += "ch"; break; // х
+      case 0x0426: germanTranslit += "Z"; break; // Ц
+      case 0x0446: germanTranslit += "z"; break; // ц
+      case 0x0427: germanTranslit += "Tsch"; break; // Ч
+      case 0x0447: germanTranslit += "tsch"; break; // ч
+      case 0x0428: germanTranslit += "Sch"; break; // Ш
+      case 0x0448: germanTranslit += "sch"; break; // ш
+      case 0x0429: germanTranslit += "Schtsch"; break; // Щ
+      case 0x0449: germanTranslit += "schtsch"; break; // щ
+      case 0x042B: germanTranslit += "Y"; break; // Ы
+      case 0x044B: germanTranslit += "y"; break; // ы
+      case 0x042D: germanTranslit += "E"; break; // Э
+      case 0x044D: germanTranslit += "e"; break; // э
+      case 0x042E: germanTranslit += "Ju"; break; // Ю
+      case 0x044E: germanTranslit += "ju"; break; // ю
+      case 0x042F: germanTranslit += "Ja"; break; // Я
+      case 0x044F: germanTranslit += "ja"; break; // я
 
 
+      //case 0x042A: // Ъ (Hard-Zeichen, Großbuchstabe)
+      //case 0x044A: // ъ (Hard-Zeichen, Kleinbuchstabe)
+      // Keine Transliteration oder falls du möchtest: germanTranslit += "\""; break;
+
+       case 0x042C: germanTranslit += "'"; break;// Ь (Soft-Zeichen, Großbuchstabe)
+       case 0x044C: germanTranslit += "'"; break;// ь (Soft-Zeichen, Kleinbuchstab
+      default: germanTranslit += (char)currentChar; // Nicht-russische Zeichen hinzufügen
+    }
+  }
+
+  return germanTranslit;
+}
 
 
 
@@ -213,7 +304,6 @@ String extractNowPlaying(String html) {
 
   return "Kein 'Now Playing' gefunden.";
 }
-
 
 
 
@@ -281,19 +371,18 @@ void sendLight() {
 
 
 void loop() {
-  //printLocalTime();  // Zeige die lokale Zeit an
-  //BlinkLicht();
+  printLocalTime();  // Zeige die lokale Zeit an
   printCurrentSong();
+
 
   unsigned long currentMillis = millis();
 
-
   // Überprüfe, ob das Intervall von 2 Minuten verstrichen ist
-  // if (currentMillis - previousMillis >= interval) {
-  //   previousMillis = currentMillis;  // Aktuellen Zeitstempel speichern
-  //   printWeather();                  // Überprüfe das Wetter
-  //fetchLastLine();                 // Fetch the last line
-  // }
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;  // Aktuellen Zeitstempel speichern
+    printWeather();                  // Überprüfe das Wetter
+    //fetchLastLine();               // Fetch the last line
+  }
 
-  delay(1000);  // Warte 1 Sekunde, bevor die Schleife erneut durchläuft
+  //delay(500);  // Warte 1 Sekunde, bevor die Schleife erneut durchläuft
 }
