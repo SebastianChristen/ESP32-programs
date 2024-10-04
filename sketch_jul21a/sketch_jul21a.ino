@@ -116,77 +116,71 @@ void printWeather() {
     Serial.printf("HTTP GET request failed, code: %d\n", httpCode);
   }
   http.end();
- // digitalWrite(19, LOW);  // Pin 19 auf LOW setze
+  // digitalWrite(19, LOW);  // Pin 19 auf LOW setze
 }
 
 
 void printCurrentSong() {
-    if (WiFi.status() == WL_CONNECTED) {
-        HTTPClient http;
-        http.begin(user_url);
-        int httpCode = http.GET();
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.begin(user_url);
+    int httpCode = http.GET();
 
-        if (httpCode > 0) {
-            String payload = http.getString();
-            currentSong = extractNowPlaying(payload);  // Store the extracted song and artist
-            
-            // Print current song to the Serial Monitor
-            Serial.println("Now Playing: " + currentSong);
+    if (httpCode > 0) {
+      String payload = http.getString();
+      currentSong = extractNowPlaying(payload);  // Store the extracted song and artist
 
-                        
+      // Print current song to the Serial Monitor
+      Serial.println("Now Playing: " + currentSong);
 
-            scrollText(currentSong);
-          
 
-        } else {
-            Serial.println("Error in HTTP request");
-        }
 
-        http.end();
+      scrollText(currentSong);
+
+
     } else {
-        Serial.println("WiFi connection lost");
+      Serial.println("Error in HTTP request");
     }
+
+    http.end();
+  } else {
+    Serial.println("WiFi connection lost");
+  }
 }
 
 void scrollText(String inputString) {
-    inputString = inputString + "    ";
-    const int segmentLength = 20; // Length of each segment
-    int totalSegments = (inputString.length() / segmentLength) + (inputString.length() % segmentLength ? 1 : 0);
-    
-    // Store segments in an array
-    String segments[totalSegments];
-    for (int i = 0; i < totalSegments; i++) {
-        segments[i] = inputString.substring(i * segmentLength, (i + 1) * segmentLength);
+  inputString = inputString + "    ";  // Add spaces for smooth scrolling
+  const int firstSegmentLength = 20;   // Fixed length for the first segment
+
+  // Split the inputString into two parts: the first 20 characters and the rest
+  String firstSegment = inputString.substring(0, firstSegmentLength);
+  String secondSegment = inputString.substring(firstSegmentLength);  // The rest of the string after the first 20 characters
+
+  // Loop indefinitely to scroll text
+  for (int i = 0; i < inputString.length() + 1; i++) {
+    // Print the first segment (fixed 20 characters)
+    lcd.setCursor(0, 0);      // Set cursor to the start of the first line
+    lcd.print(firstSegment);  // Print the first segment
+
+    // Shift the first character of the first segment into the second segment
+    char firstChar = firstSegment.charAt(0);   // Get the first character of the first segment
+    firstSegment = firstSegment.substring(1);  // Remove the first character from the first segment
+    secondSegment += firstChar;                // Append the removed character to the end of the second segment
+
+    // Now take the first character from the second segment and prepend it to the first segment
+    firstSegment += secondSegment.charAt(0);     // Add the first character of the second segment to the first segment
+    secondSegment = secondSegment.substring(1);  // Remove the first character from the second segment
+
+    // Ensure the first segment remains 20 characters long
+    if (firstSegment.length() > firstSegmentLength) {
+      firstSegment = firstSegment.substring(0, firstSegmentLength);  // Trim it to exactly 20 characters
     }
 
-    // Loop indefinitely to scroll text
-     for (int i = 0; i < inputString.length()+1; i++) {
-        // Print the first segment
-        lcd.setCursor(0, 0); // Position at the beginning of the first line
-        lcd.print(segments[0]);
-
-        // Shift characters
-        char firstChar = segments[0].charAt(0); // Get the first character of the first string
-        segments[0] = segments[0].substring(1); // Remove the first character from the first string
-
-        // Append the first character to the last string
-        segments[totalSegments - 1] += firstChar;
-
-        // Append the first character of the second string to the first string (if available)
-        if (totalSegments > 1) {
-            segments[0] += segments[1].charAt(0);
-            segments[1] = segments[1].substring(1); // Shift the second string
-        }
-
-        // If the first segment exceeds 20 characters due to addition, trim it
-        if (segments[0].length() > segmentLength) {
-            segments[0] = segments[0].substring(0, segmentLength);
-        }
-
-        // Delay before the next iteration
-        delay(200); // Adjust this delay for speed of scrolling
-    }
+    // Delay to control the scroll speed
+    delay(200);  // Adjust this delay for faster or slower scrolling
+  }
 }
+
 
 
 
@@ -196,27 +190,27 @@ void scrollText(String inputString) {
 String extractNowPlaying(String html) {
   String searchTag = "<strong>Now playing: </strong>";
   int startPos = html.indexOf(searchTag);
-  
+
   if (startPos != -1) {
     // Suche nach dem Track-Namen (erster <a> Tag)
-    startPos = html.indexOf("<a", startPos);  // Suche nach erstem <a>-Tag
-    startPos = html.indexOf(">", startPos) + 1;  // Finde das Ende des <a>-Tags
-    int endPos = html.indexOf("</a>", startPos);  // Finde das Ende des Link-Textes
+    startPos = html.indexOf("<a", startPos);          // Suche nach erstem <a>-Tag
+    startPos = html.indexOf(">", startPos) + 1;       // Finde das Ende des <a>-Tags
+    int endPos = html.indexOf("</a>", startPos);      // Finde das Ende des Link-Textes
     String track = html.substring(startPos, endPos);  // Extrahiere den Track-Namen
-    track.trim();  // Bereinige den Track-Namen
-    
+    track.trim();                                     // Bereinige den Track-Namen
+
     // Suche nach dem Künstler (zweiter <a> Tag, nach "by")
-    startPos = html.indexOf("by", endPos);  // Suche nach "by"
-    startPos = html.indexOf("<a", startPos);  // Suche nach dem nächsten <a>-Tag
-    startPos = html.indexOf(">", startPos) + 1;  // Finde das Ende des zweiten <a>-Tags
-    endPos = html.indexOf("</a>", startPos);  // Finde das Ende des zweiten Link-Textes
+    startPos = html.indexOf("by", endPos);             // Suche nach "by"
+    startPos = html.indexOf("<a", startPos);           // Suche nach dem nächsten <a>-Tag
+    startPos = html.indexOf(">", startPos) + 1;        // Finde das Ende des zweiten <a>-Tags
+    endPos = html.indexOf("</a>", startPos);           // Finde das Ende des zweiten Link-Textes
     String artist = html.substring(startPos, endPos);  // Extrahiere den Künstlernamen
-    artist.trim();  // Bereinige den Künstlernamen
-    
+    artist.trim();                                     // Bereinige den Künstlernamen
+
     // Rückgabe des Track-Namens und des Künstlers im Format "Song - Artist"
     return track + " - " + artist;
   }
-  
+
   return "Kein 'Now Playing' gefunden.";
 }
 
@@ -262,7 +256,7 @@ void fetchLastLine() {
 
   http.end();
 
- // digitalWrite(19, LOW);  // Pin 19 auf LOW setzen
+  // digitalWrite(19, LOW);  // Pin 19 auf LOW setzen
 }
 
 
@@ -295,11 +289,11 @@ void loop() {
 
 
   // Überprüfe, ob das Intervall von 2 Minuten verstrichen ist
- // if (currentMillis - previousMillis >= interval) {
- //   previousMillis = currentMillis;  // Aktuellen Zeitstempel speichern
- //   printWeather();                  // Überprüfe das Wetter
-    //fetchLastLine();                 // Fetch the last line
- // }
+  // if (currentMillis - previousMillis >= interval) {
+  //   previousMillis = currentMillis;  // Aktuellen Zeitstempel speichern
+  //   printWeather();                  // Überprüfe das Wetter
+  //fetchLastLine();                 // Fetch the last line
+  // }
 
   delay(1000);  // Warte 1 Sekunde, bevor die Schleife erneut durchläuft
 }
